@@ -1,5 +1,9 @@
 use crate::error::Error;
-use crate::lib::*;
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::string::String;
+use core::fmt::{self, Debug, Display};
+use core::mem;
 use serde::de::value::BorrowedStrDeserializer;
 use serde::de::{
     self, Deserialize, DeserializeSeed, Deserializer, IntoDeserializer, MapAccess, Unexpected,
@@ -25,7 +29,7 @@ use serde::ser::{Serialize, SerializeStruct, Serializer};
 ///
 /// ```toml
 /// [dependencies]
-/// serde_json = { version = "1.0", features = ["raw_value"] }
+/// serde_jsonrc = { version = "1.0", features = ["raw_value"] }
 /// ```
 ///
 /// # Example
@@ -122,6 +126,10 @@ impl RawValue {
     fn from_owned(json: Box<str>) -> Box<Self> {
         unsafe { mem::transmute::<Box<str>, Box<RawValue>>(json) }
     }
+
+    fn into_owned(raw_value: Box<Self>) -> Box<str> {
+        unsafe { mem::transmute::<Box<RawValue>, Box<str>>(raw_value) }
+    }
 }
 
 impl Clone for Box<RawValue> {
@@ -216,6 +224,12 @@ impl RawValue {
     }
 }
 
+impl From<Box<RawValue>> for Box<str> {
+    fn from(raw_value: Box<RawValue>) -> Self {
+        RawValue::into_owned(raw_value)
+    }
+}
+
 /// Convert a `T` into a boxed `RawValue`.
 ///
 /// # Example
@@ -231,7 +245,7 @@ impl RawValue {
 ///
 /// // Local crate
 /// use serde::Serialize;
-/// use serde_json::value::{to_raw_value, RawValue};
+/// use serde_jsonrc::value::{to_raw_value, RawValue};
 ///
 /// #[derive(Serialize)]
 /// struct MyExtraData {
@@ -245,8 +259,8 @@ impl RawValue {
 ///     extra_data: to_raw_value(&MyExtraData { a: 1, b: 2 }).unwrap(),
 /// };
 /// # assert_eq!(
-/// #     serde_json::to_value(my_thing).unwrap(),
-/// #     serde_json::json!({
+/// #     serde_jsonrc::to_value(my_thing).unwrap(),
+/// #     serde_jsonrc::json!({
 /// #         "foo": "FooVal",
 /// #         "bar": null,
 /// #         "extra_data": { "a": 1, "b": 2 }
@@ -266,12 +280,12 @@ impl RawValue {
 /// let mut map = BTreeMap::new();
 /// map.insert(vec![32, 64], "x86");
 ///
-/// println!("{}", serde_json::value::to_raw_value(&map).unwrap_err());
+/// println!("{}", serde_jsonrc::value::to_raw_value(&map).unwrap_err());
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "raw_value")))]
 pub fn to_raw_value<T>(value: &T) -> Result<Box<RawValue>, Error>
 where
-    T: Serialize,
+    T: ?Sized + Serialize,
 {
     let json_string = crate::to_string(value)?;
     Ok(RawValue::from_owned(json_string.into_boxed_str()))
@@ -435,9 +449,10 @@ impl<'de> Visitor<'de> for BoxedFromString {
     where
         E: de::Error,
     {
-        self.visit_string(s.to_owned())
+        Ok(RawValue::from_owned(s.to_owned().into_boxed_str()))
     }
 
+    #[cfg(any(feature = "std", feature = "alloc"))]
     fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
     where
         E: de::Error,

@@ -1,9 +1,14 @@
 //! When serializing or deserializing JSON goes wrong.
 
 use crate::io;
-use crate::lib::str::FromStr;
-use crate::lib::*;
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use core::fmt::{self, Debug, Display};
+use core::result;
+use core::str::FromStr;
 use serde::{de, ser};
+#[cfg(feature = "std")]
+use std::error;
 
 /// This type represents all possible errors that can occur when serializing or
 /// deserializing JSON data.
@@ -326,8 +331,8 @@ impl Display for ErrorCode {
 impl serde::de::StdError for Error {
     #[cfg(feature = "std")]
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match self.err.code {
-            ErrorCode::Io(ref err) => Some(err),
+        match &self.err.code {
+            ErrorCode::Io(err) => Some(err),
             _ => None,
         }
     }
@@ -446,7 +451,7 @@ fn parse_line_col(msg: &mut String) -> Option<(usize, usize)> {
 }
 
 fn starts_with_digit(slice: &str) -> bool {
-    match slice.as_bytes().get(0) {
+    match slice.as_bytes().first() {
         None => false,
         Some(&byte) => byte >= b'0' && byte <= b'9',
     }

@@ -6,26 +6,27 @@ authors = [
     "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
     "David Tolnay <dtolnay@gmail.com>",
 ]
-license = "MIT/Apache-2.0"
+categories = ["encoding", "parser-implementations", "no-std"]
 description = "A lenient JSON serialization file format"
-repository = "https://github.com/serde-rs/json"
-documentation = "https://docs.serde.rs/serde_jsonrc/"
-keywords = ["json", "serde", "serialization"]
-categories = ["encoding"]
-readme = "README.md"
-include = ["build.rs", "src/**/*.rs", "README.md", "LICENSE-APACHE", "LICENSE-MIT"]
+documentation = "https://docs.rs/serde_jsonrc/"
 edition = "2018"
-rust-version = "1.31"
+keywords = ["json", "serde", "serialization"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/serde-rs/json"
+rust-version = "1.36"
 
 [dependencies]
 serde = { version = "1.0.100", default-features = false }
-indexmap = { version = "1.5", optional = true }
-itoa = { version = "0.4.3", default-features = false }
+indexmap = { version = "1.5.2", features = ["std"], optional = true }
+itoa = "1.0"
 ryu = "1.0"
 
 [dev-dependencies]
 automod = "1.0"
+indoc = "1.0"
+ref-cast = "1.0"
 rustversion = "1.0"
+serde = { version = "1.0.100", features = ["derive"] }
 serde_bytes = "0.11"
 serde_derive = "1.0"
 serde_stacker = "0.1"
@@ -53,13 +54,12 @@ std = ["serde/std"]
 # Provide integration for heap-allocated collections without depending on the
 # rest of the Rust standard library.
 # NOTE: Disabling both `std` *and* `alloc` features is not supported yet.
-# Available on Rust 1.36+.
 alloc = ["serde/alloc"]
 
-# Make serde_json::Map use a representation which maintains insertion order.
+# Make serde_jsonrc::Map use a representation which maintains insertion order.
 # This allows data to be read into a Value and written back to a JSON string
 # while preserving the order of map keys in the input.
-preserve_order = ["indexmap"]
+preserve_order = ["indexmap", "std"]
 
 # Use sufficient precision when parsing fixed precision floats from JSON to
 # ensure that they maintain accuracy when round-tripped through JSON. This comes
@@ -74,7 +74,7 @@ float_roundtrip = []
 # allows JSON numbers of arbitrary size/precision to be read into a Number and
 # written back to a JSON string without loss of precision.
 #
-# Unlike float_roundtrip, this feature makes JSON -> serde_json::Number -> JSON
+# Unlike float_roundtrip, this feature makes JSON -> serde_jsonrc::Number -> JSON
 # produce output identical to the input.
 arbitrary_precision = []
 

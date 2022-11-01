@@ -3,12 +3,18 @@
 use crate::error::{Error, ErrorCode, Result};
 #[cfg(feature = "float_roundtrip")]
 use crate::lexical;
-use crate::lib::str::FromStr;
-use crate::lib::*;
 use crate::number::Number;
 use crate::read::{self, Fused, Reference};
+use alloc::string::String;
+use alloc::vec::Vec;
+#[cfg(feature = "float_roundtrip")]
+use core::iter;
+use core::iter::FusedIterator;
+use core::marker::PhantomData;
+use core::result;
+use core::str::FromStr;
 use serde::de::{self, Expected, Unexpected};
-use serde::{forward_to_deserialize_any, serde_if_integer128};
+use serde::forward_to_deserialize_any;
 
 #[cfg(feature = "arbitrary_precision")]
 use crate::number::NumberDeserializer;
@@ -87,7 +93,9 @@ impl<'a> Deserializer<read::StrRead<'a>> {
 
 macro_rules! overflow {
     ($a:ident * 10 + $b:ident, $c:expr) => {
-        $a >= $c / 10 && ($a > $c / 10 || $b > $c % 10)
+        match $c {
+            c => $a >= c / 10 && ($a > c / 10 || $b > c % 10),
+        }
     };
 }
 
@@ -163,7 +171,7 @@ impl<'de, R: Read<'de>> Deserializer<R> {
     /// completed, including, but not limited to, Display and Debug and Drop
     /// impls.
     ///
-    /// *This method is only available if serde_json is built with the
+    /// *This method is only available if serde_jsonrc is built with the
     /// `"unbounded_depth"` feature.*
     ///
     /// # Examples
@@ -380,31 +388,25 @@ impl<'de, R: Read<'de>> Deserializer<R> {
         }
     }
 
-    serde_if_integer128! {
-        fn scan_integer128(&mut self, buf: &mut String) -> Result<()> {
-            match tri!(self.next_char_or_null()) {
-                b'0' => {
-                    buf.push('0');
-                    // There can be only one leading '0'.
-                    match tri!(self.peek_or_null()) {
-                        b'0'..=b'9' => {
-                            Err(self.peek_error(ErrorCode::InvalidNumber))
-                        }
-                        _ => Ok(()),
-                    }
-                }
-                c @ b'1'..=b'9' => {
-                    buf.push(c as char);
-                    while let c @ b'0'..=b'9' = tri!(self.peek_or_null()) {
-                        self.eat_char();
-                        buf.push(c as char);
-                    }
-                    Ok(())
-                }
-                _ => {
-                    Err(self.error(ErrorCode::InvalidNumber))
+    fn scan_integer128(&mut self, buf: &mut String) -> Result<()> {
+        match tri!(self.next_char_or_null()) {
+            b'0' => {
+                buf.push('0');
+                // There can be only one leading '0'.
+                match tri!(self.peek_or_null()) {
+                    b'0'..=b'9' => Err(self.peek_error(ErrorCode::InvalidNumber)),
+                    _ => Ok(()),
                 }
             }
+            c @ b'1'..=b'9' => {
+                buf.push(c as char);
+                while let c @ b'0'..=b'9' = tri!(self.peek_or_null()) {
+                    self.eat_char();
+                    buf.push(c as char);
+                }
+                Ok(())
+            }
+            _ => Err(self.error(ErrorCode::InvalidNumber)),
         }
     }
 
@@ -909,6 +911,15 @@ impl<'de, R: Read<'de>> Deserializer<R> {
             buf.push('-');
         }
         self.scan_integer(&mut buf)?;
+        if positive {
+            if let Ok(unsigned) = buf.parse() {
+                return Ok(ParserNumber::U64(unsigned));
+            }
+        } else {
+            if let Ok(signed) = buf.parse() {
+                return Ok(ParserNumber::I64(signed));
+            }
+        }
         Ok(ParserNumber::String(buf))
     }
 
@@ -1473,67 +1484,65 @@ impl<'de, 'a, R: Read<'de>> de::Deserializer<'de> for &'a mut Deserializer<R> {
         val
     }
 
-    serde_if_integer128! {
-        fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value>
-        where
-            V: de::Visitor<'de>,
-        {
-            let mut buf = String::new();
+    fn deserialize_i128<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        let mut buf = String::new();
 
-            match tri!(self.parse_whitespace()) {
-                Some(b'-') => {
-                    self.eat_char();
-                    buf.push('-');
-                }
-                Some(_) => {}
-                None => {
-                    return Err(self.peek_error(ErrorCode::EofWhileParsingValue));
-                }
-            };
+        match tri!(self.parse_whitespace()) {
+            Some(b'-') => {
+                self.eat_char();
+                buf.push('-');
+            }
+            Some(_) => {}
+            None => {
+                return Err(self.peek_error(ErrorCode::EofWhileParsingValue));
+            }
+        };
 
-            tri!(self.scan_integer128(&mut buf));
+        tri!(self.scan_integer128(&mut buf));
 
-            let value = match buf.parse() {
-                Ok(int) => visitor.visit_i128(int),
-                Err(_) => {
-                    return Err(self.error(ErrorCode::NumberOutOfRange));
-                }
-            };
+        let value = match buf.parse() {
+            Ok(int) => visitor.visit_i128(int),
+            Err(_) => {
+                return Err(self.error(ErrorCode::NumberOutOfRange));
+            }
+        };
 
-            match value {
-                Ok(value) => Ok(value),
-                Err(err) => Err(self.fix_position(err)),
+        match value {
+            Ok(value) => Ok(value),
+            Err(err) => Err(self.fix_position(err)),
+        }
+    }
+
+    fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: de::Visitor<'de>,
+    {
+        match tri!(self.parse_whitespace()) {
+            Some(b'-') => {
+                return Err(self.peek_error(ErrorCode::NumberOutOfRange));
+            }
+            Some(_) => {}
+            None => {
+                return Err(self.peek_error(ErrorCode::EofWhileParsingValue));
             }
         }
 
-        fn deserialize_u128<V>(self, visitor: V) -> Result<V::Value>
-        where
-            V: de::Visitor<'de>,
-        {
-            match tri!(self.parse_whitespace()) {
-                Some(b'-') => {
-                    return Err(self.peek_error(ErrorCode::NumberOutOfRange));
-                }
-                Some(_) => {}
-                None => {
-                    return Err(self.peek_error(ErrorCode::EofWhileParsingValue));
-                }
+        let mut buf = String::new();
+        tri!(self.scan_integer128(&mut buf));
+
+        let value = match buf.parse() {
+            Ok(int) => visitor.visit_u128(int),
+            Err(_) => {
+                return Err(self.error(ErrorCode::NumberOutOfRange));
             }
+        };
 
-            let mut buf = String::new();
-            tri!(self.scan_integer128(&mut buf));
-
-            let value = match buf.parse() {
-                Ok(int) => visitor.visit_u128(int),
-                Err(_) => {
-                    return Err(self.error(ErrorCode::NumberOutOfRange));
-                }
-            };
-
-            match value {
-                Ok(value) => Ok(value),
-                Err(err) => Err(self.fix_position(err)),
-            }
+        match value {
+            Ok(value) => Ok(value),
+            Err(err) => Err(self.fix_position(err)),
         }
     }
 
@@ -1613,7 +1622,8 @@ impl<'de, 'a, R: Read<'de>> de::Deserializer<'de> for &'a mut Deserializer<R> {
     ///
     /// # Examples
     ///
-    /// You can use this to parse JSON strings containing invalid UTF-8 bytes.
+    /// You can use this to parse JSON strings containing invalid UTF-8 bytes,
+    /// or unpaired surrogates.
     ///
     /// ```
     /// use serde_bytes::ByteBuf;
@@ -1633,20 +1643,18 @@ impl<'de, 'a, R: Read<'de>> de::Deserializer<'de> for &'a mut Deserializer<R> {
     /// ```
     ///
     /// Backslash escape sequences like `\n` are still interpreted and required
-    /// to be valid, and `\u` escape sequences are required to represent valid
-    /// Unicode code points.
+    /// to be valid. `\u` escape sequences are required to represent a valid
+    /// Unicode code point or lone surrogate.
     ///
     /// ```
     /// use serde_bytes::ByteBuf;
     ///
-    /// fn look_at_bytes() {
-    ///     let json_data = b"\"invalid unicode surrogate: \\uD801\"";
-    ///     let parsed: Result<ByteBuf, _> = serde_jsonrc::from_slice(json_data);
-    ///
-    ///     assert!(parsed.is_err());
-    ///
-    ///     let expected_msg = "unexpected end of hex escape at line 1 column 35";
-    ///     assert_eq!(expected_msg, parsed.unwrap_err().to_string());
+    /// fn look_at_bytes() -> Result<(), serde_jsonrc::Error> {
+    ///     let json_data = b"\"lone surrogate: \\uD801\"";
+    ///     let bytes: ByteBuf = serde_jsonrc::from_slice(json_data)?;
+    ///     let expected = b"lone surrogate: \xED\xA0\x81";
+    ///     assert_eq!(expected, bytes.as_slice());
+    ///     Ok(())
     /// }
     /// #
     /// # look_at_bytes();
@@ -2193,15 +2201,12 @@ where
     deserialize_integer_key!(deserialize_i16 => visit_i16);
     deserialize_integer_key!(deserialize_i32 => visit_i32);
     deserialize_integer_key!(deserialize_i64 => visit_i64);
+    deserialize_integer_key!(deserialize_i128 => visit_i128);
     deserialize_integer_key!(deserialize_u8 => visit_u8);
     deserialize_integer_key!(deserialize_u16 => visit_u16);
     deserialize_integer_key!(deserialize_u32 => visit_u32);
     deserialize_integer_key!(deserialize_u64 => visit_u64);
-
-    serde_if_integer128! {
-        deserialize_integer_key!(deserialize_i128 => visit_i128);
-        deserialize_integer_key!(deserialize_u128 => visit_u128);
-    }
+    deserialize_integer_key!(deserialize_u128 => visit_u128);
 
     #[inline]
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -2213,10 +2218,18 @@ where
     }
 
     #[inline]
-    fn deserialize_newtype_struct<V>(self, _name: &'static str, visitor: V) -> Result<V::Value>
+    fn deserialize_newtype_struct<V>(self, name: &'static str, visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
+        #[cfg(feature = "raw_value")]
+        {
+            if name == crate::raw::TOKEN {
+                return self.de.deserialize_raw_value(visitor);
+            }
+        }
+
+        let _ = name;
         visitor.visit_newtype_struct(self)
     }
 
