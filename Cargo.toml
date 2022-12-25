@@ -1,6 +1,6 @@
 [package]
 name = "serde_jsonrc"
-version = "0.1.89" # remember to update html_root_url
+version = "0.1.91" # remember to update html_root_url
 authors = [
     "Michael Bolin <bolinfest@gmail.com>",
     "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
@@ -34,6 +34,9 @@ trybuild = { version = "1.0.49", features = ["diff"] }
 
 [workspace]
 members = ["tests/crate"]
+
+[lib]
+doc-scrape-examples = false
 
 [package.metadata.docs.rs]
 features = ["raw_value", "unbounded_depth"]
