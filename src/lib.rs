@@ -113,7 +113,7 @@
 //! a JSON string to a Rust string with [`as_str()`] or avoiding the use of
 //! `Value` as described in the following section.
 //!
-//! [`as_str()`]: https://docs.serde.rs/serde_jsonrc/enum.Value.html#method.as_str
+//! [`as_str()`]: crate::Value::as_str
 //!
 //! The `Value` representation is sufficient for very basic tasks but can be
 //! tedious to work with for anything more significant. Error handling is
@@ -299,14 +299,14 @@
 //! For JSON support in Serde without a memory allocator, please see the
 //! [`serde-json-core`] crate.
 //!
-//! [value]: https://docs.serde.rs/serde_jsonrc/value/enum.Value.html
-//! [from_str]: https://docs.serde.rs/serde_jsonrc/de/fn.from_str.html
-//! [from_slice]: https://docs.serde.rs/serde_jsonrc/de/fn.from_slice.html
-//! [from_reader]: https://docs.serde.rs/serde_jsonrc/de/fn.from_reader.html
-//! [to_string]: https://docs.serde.rs/serde_jsonrc/ser/fn.to_string.html
-//! [to_vec]: https://docs.serde.rs/serde_jsonrc/ser/fn.to_vec.html
-//! [to_writer]: https://docs.serde.rs/serde_jsonrc/ser/fn.to_writer.html
-//! [macro]: https://docs.serde.rs/serde_jsonrc/macro.json.html
+//! [value]: crate::value::Value
+//! [from_str]: crate::de::from_str
+//! [from_slice]: crate::de::from_slice
+//! [from_reader]: crate::de::from_reader
+//! [to_string]: crate::ser::to_string
+//! [to_vec]: crate::ser::to_vec
+//! [to_writer]: crate::ser::to_writer
+//! [macro]: crate::json
 //! [`serde-json-core`]: https://github.com/rust-embedded-community/serde-json-core
 
 #![doc(html_root_url = "https://docs.rs/serde_jsonrc/0.1.2")]
@@ -347,6 +347,7 @@
     clippy::enum_glob_use,
     clippy::if_not_else,
     clippy::integer_division,
+    clippy::let_underscore_untyped,
     clippy::map_err_ignore,
     clippy::match_same_arms,
     clippy::similar_names,
