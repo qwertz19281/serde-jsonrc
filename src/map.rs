@@ -284,6 +284,12 @@ impl Map<String, Value> {
     {
         self.map.retain(f);
     }
+
+    /// Sort by key string
+    #[cfg(feature = "preserve_order")]
+    pub fn sort_by_key_string(&mut self) {
+        self.map.sort_keys()
+    }
 }
 
 #[allow(clippy::derivable_impls)] // clippy bug: https://github.com/rust-lang/rust-clippy/issues/7655
