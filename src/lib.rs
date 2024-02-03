@@ -64,10 +64,9 @@
 //! ```
 //!
 //! A string of JSON data can be parsed into a `serde_jsonrc::Value` by the
-//! [`serde_jsonrc::from_str`][from_str] function. There is also
-//! [`from_slice`][from_slice] for parsing from a byte slice &[u8] and
-//! [`from_reader`][from_reader] for parsing from any `io::Read` like a File or
-//! a TCP stream.
+//! [`serde_jsonrc::from_str`][from_str] function. There is also [`from_slice`]
+//! for parsing from a byte slice &\[u8\] and [`from_reader`] for parsing from
+//! any `io::Read` like a File or a TCP stream.
 //!
 //! ```
 //! use serde_jsonrc::{Result, Value};
@@ -326,6 +325,7 @@
     clippy::needless_late_init,
     clippy::return_self_not_must_use,
     clippy::transmute_ptr_to_ptr,
+    clippy::unconditional_recursion, // https://github.com/rust-lang/rust-clippy/issues/12133
     clippy::unnecessary_wraps
 )]
 // Ignored clippy_pedantic lints
@@ -375,6 +375,7 @@
 extern crate alloc;
 
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[doc(inline)]
 pub use crate::de::from_reader;
 #[doc(inline)]
@@ -384,6 +385,7 @@ pub use crate::error::{Error, Result};
 #[doc(inline)]
 pub use crate::ser::{to_string, to_string_pretty, to_vec, to_vec_pretty};
 #[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[doc(inline)]
 pub use crate::ser::{to_writer, to_writer_pretty, Serializer};
 #[doc(inline)]
